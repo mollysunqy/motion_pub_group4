@@ -33,6 +33,8 @@ class Planner:
         self.map = json.loads(msg.data)
 
         # TODO BEGIN MRSS: Use map for planning
+        dist_x = self.map['/goal'][0]
+        dist_y = self.map['/goal'][1]
 
         # END MRSS
 
@@ -40,8 +42,8 @@ class Planner:
         self.cmd = geometry_msgs.msg.Twist()
 
         # TODO BEGIN MRSS: Update the current command
-        self.cmd.linear.x = 0.
-        self.cmd.linear.y = 0.
+        self.cmd.linear.x = 0.15 * dist_x
+        self.cmd.linear.y = 0.15 * dist_y
         self.cmd.angular.z = 0.
         # END MRSS
 

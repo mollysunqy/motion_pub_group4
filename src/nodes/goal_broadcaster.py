@@ -12,7 +12,7 @@ if __name__ == '__main__':
     br = tf.TransformBroadcaster()
 
     # Parameter to control object (works only with boards!!!)
-    rospy.set_param("/mrss_motion/goal_object", "board1")
+    rospy.set_param("/mrss_motion/goal_object", "board2")
 
     rate = rospy.Rate(10.0)
     while not rospy.is_shutdown():
