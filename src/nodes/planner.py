@@ -20,11 +20,13 @@ class Planner:
         # Initialize subscriber
         self.map_sub = rospy.Subscriber('/map', String, self.map_callback)
         self.map = None
-        self.threshold = 0.01
         # Intialize publisher
         self.cmd_pub = rospy.Publisher('/cmd_vel', geometry_msgs.msg.Twist, queue_size=1)
         self.cmd = None
         self.rate = rospy.Rate(10)  # Publisher frequency
+        # Hyperparams
+        self.threshold = 0.10
+        self.y_dir_preference = 0.02
 
 
     def map_callback(self, msg):
@@ -34,7 +36,10 @@ class Planner:
         dist_goal_y = self.map['/goal'][1]
         dist_goal_orient = self.map['/goal'][2]
 
-        # Twist
+        dist_obstacle_x = self.map['/obstacle'][0]  # TODO: make sure the key is right
+        dist_obstacle_y = self.map['/obstacle'][1]
+
+        # Z-rotation
         self.cmd = geometry_msgs.msg.Twist()
         if np.linalg.norm([dist_goal_x,dist_goal_y])<self.threshold:
             # turn to goal orientation
@@ -43,8 +48,9 @@ class Planner:
             # go to goal
             self.cmd.angular.z = 0.1  * math.atan2(dist_goal_x,dist_goal_y)
 
-        self.cmd.linear.x = 0.15 * dist_goal_x
-        self.cmd.linear.y = 0.15 * dist_goal_y
+        # XY-translation
+        self.cmd.linear.x = 0.15 ( dist_goal_x - 2 * dist_obstacle_x )
+        self.cmd.linear.y = 0.15 ( dist_goal_y - 2 * dist_obstacle_y + self.y_dir_preference )
 
 
     def spin(self):
