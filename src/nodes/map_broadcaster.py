@@ -35,10 +35,10 @@ if __name__ == '__main__':
         # Lookup required transforms
         for obj in ['/goal', '/obstacle']:  # TODO: make sure 'obstacle/' here is right
             try:
-                (trans,rot) = listener.lookupTransform('/rig', obj, rospy.Time(0))
+                (trans,_) = listener.lookupTransform('/rig', obj, rospy.Time(0))
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 continue
-            message[obj] = [trans[0], trans[1], rot[2]]
+            message[obj] = [trans[0], trans[1]]
 
         # Add timestamp
         time = rospy.Time.now()

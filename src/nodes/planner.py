@@ -25,7 +25,6 @@ class Planner:
         self.cmd = None
         self.rate = rospy.Rate(10)  # Publisher frequency
         # Hyperparams
-        self.threshold = 0.10
         self.y_dir_preference = 0.02
 
 
@@ -41,16 +40,11 @@ class Planner:
 
         # Z-rotation
         self.cmd = geometry_msgs.msg.Twist()
-        if np.linalg.norm([dist_goal_x,dist_goal_y])<self.threshold:
-            # turn to goal orientation
-            self.cmd.angular.z = 0.1 * dist_goal_orient
-        else:
-            # go to goal
-            self.cmd.angular.z = 0.1  * math.atan2(dist_goal_x,dist_goal_y)
 
         # XY-translation
         self.cmd.linear.x = 0.15 ( dist_goal_x - 2 * dist_obstacle_x )
         self.cmd.linear.y = 0.15 ( dist_goal_y - 2 * dist_obstacle_y + self.y_dir_preference )
+        self.cmd.angular.z = 0.1  * math.atan2(dist_goal_x,dist_goal_y)
 
 
     def spin(self):
