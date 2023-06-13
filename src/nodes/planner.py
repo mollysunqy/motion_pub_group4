@@ -25,25 +25,14 @@ class Planner:
         self.cmd_pub = rospy.Publisher('/cmd_vel', geometry_msgs.msg.Twist, queue_size=1)
         self.cmd = None
         self.rate = rospy.Rate(10)  # Publisher frequency
-        self.robot_pose_topic = "string"
-        # getting the robot position
-        # self.map_sub = rospy.Subscriber(self.robot_pose_topic, String, self.map_callback)
 
-        # TODO BEGIN MRSS: Add attributes (If needed)
-
-        # END MRSS
 
     def map_callback(self, msg):
         self.map = json.loads(msg.data)
 
-        # TODO BEGIN MRSS: Use map for planning
         dist_goal_x = self.map['/goal'][0]
         dist_goal_y = self.map['/goal'][1]
         dist_goal_orient = self.map['/goal'][2]
-
-        robot_orient = self.map['/rig'] #TODO: fill in
-
-        # END MRSS
 
         # Twist
         self.cmd = geometry_msgs.msg.Twist()
@@ -53,10 +42,10 @@ class Planner:
         else:
             # go to goal
             self.cmd.angular.z = 0.1  * math.atan2(dist_goal_x,dist_goal_y)
-        # TODO BEGIN MRSS: Update the current command
+
         self.cmd.linear.x = 0.15 * dist_goal_x
         self.cmd.linear.y = 0.15 * dist_goal_y
-        # END MRSS
+
 
     def spin(self):
         '''
