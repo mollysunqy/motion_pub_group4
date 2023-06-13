@@ -36,14 +36,14 @@ if __name__ == '__main__':
         for obj in ['/goal']:
             # TODO BEGIN MRSS: Look up a relevant transform
             try:
-                (trans,_) = listener.lookupTransform('/rig', obj, rospy.Time(0))
+                (trans,rot) = listener.lookupTransform('/rig', obj, rospy.Time(0))
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 continue
 
             # End MRSS
 
             # TODO BEGIN MRSS: Add transform to Dict
-            message[obj] = [trans[0], trans[1]]
+            message[obj] = [trans[0], trans[1], rot[2]]
             # End MRSS
 
 
