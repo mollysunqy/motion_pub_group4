@@ -23,6 +23,7 @@ class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
         self.k_att = np.array([1., 1.])  # HARDCODED
         self.k_rep = np.array([0.5, 0.5])  # HARDCODED
+        self.rep_dist_threshold = 1.  # HARDCODED
 
     def get_attraction_forces(self, att_pos_list: np.ndarray) -> np.ndarray:
         if len(att_pos_list) == 0:
@@ -30,7 +31,7 @@ class XYPotentialBasedPlanner(XYBasePlanner):
         else:
             assert len(att_pos_list.shape) == 2
             assert att_pos_list.shape[1] == 2
-            att_force = att_pos_list.sum(1) * self.k_att
+            att_force = att_pos_list.sum(0) * self.k_att
             return att_force
 
     def get_repulsion_forces(self, rep_pos_list: np.ndarray) -> np.ndarray:
@@ -39,7 +40,8 @@ class XYPotentialBasedPlanner(XYBasePlanner):
         else:
             assert len(rep_pos_list.shape) == 2
             assert rep_pos_list.shape[1] == 2
-            rep_force = rep_pos_list.sum(1) * self.k_rep
+            rep_force_mask = np.resize((np.linalg.norm(rep_pos_list, axis=1) < self.rep_dist_threshold).astype(np.float), rep_pos_list.shape)
+            rep_force = - ((1. / rep_pos_list) * rep_force_mask).sum(0) * self.k_rep
             return rep_force
 
     def compute_commands(self, goals_pos: np.ndarray, obstacles_pos: np.ndarray) -> np.ndarray:
