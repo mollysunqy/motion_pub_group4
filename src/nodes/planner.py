@@ -68,6 +68,7 @@ class Planner:
 
         # Motion planner
         self.motion_planner = XYPotentialBasedPlanner()
+        self.look_direction = "forward"  # "forward" or "goal"
 
         # Obstacle positions: dict of [obstacle_tag_str: obstacle_world_pos]
         self.obstacles = {}
@@ -83,16 +84,15 @@ class Planner:
         self.cmd.linear.y = self.force_coef * xy_commands[1]
 
         # Z-rotation
-        self.cmd.angular.z = self.torq_coef * math.atan2(dist_goal[0], dist_goal[1])
-
-    # TODO: sensor callback
-    """
-    def sensor_callback(self, msg):
-        self.sensor_info_dict = json.loads(msg.data)
-        for TAG in self.sensor_info_dict.keys():
-            if 'obstacle' in TAG and TAG not in self.obstacles.keys():
-                self.obstacles[TAG] = self.sensor_info_dict[TAG] # make sure this is in world coordinates
-    """
+        if self.look_direction == "goal":
+            self.cmd.angular.z = self.torq_coef * math.atan2(dist_goal[0], dist_goal[1])
+        elif self.look_direction == "forward":
+            if xy_commands[1] > self.:
+                pass
+            else:
+                self.cmd.angular.z = 0.
+        else:
+            raise NotImplementedError(f"Invalid self.look_direction={self.look_direction}")
 
     def get_obstacles_rel_pos(self):
         # TODO: query robot current position in world frame
