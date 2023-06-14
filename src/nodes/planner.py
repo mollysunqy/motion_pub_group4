@@ -9,6 +9,39 @@ import geometry_msgs.msg
 import json
 
 
+class BasePlanner:
+    def __init__(self):
+        pass
+    def get_commands(self, goals_pos=None, obstacles_pos=None):
+        raise NotImplementedError()
+
+
+class XYPotentialPlanner(BasePlanner):
+    def __init__(self):
+        self.k_att = np.array([1., 1.])
+        self.k_rep = np.array([0.5, 0.5])
+
+    def get_attraction_forces(self, att_pos_list: np.ndarray):
+        if att_pos_list is None:
+            return np.zeros_like(self.k_att)
+        else:
+            assert len(att_pos_list.shape) == 2
+            att_force = att_pos_list.sum(1) * self.k_att
+            return att_force
+
+    def get_repulsion_forces(self, rep_pos_list: np.ndarray):
+        if rep_pos_list is None:
+            return np.zeros_like(self.k_rep)
+        else:
+            assert len(rep_pos_list.shape) == 2
+            rep_force = rep_pos_list.sum(1) * self.k_rep
+            return rep_force
+
+    def compute_commands(self, goals_pos, obstacles_pos):
+        force = self.get_attraction_forces(goals_pos) + self.get_repulsion_forces(obstacles_pos)
+        return force
+
+
 class Planner:
     def __init__(self):
         super().__init__()
@@ -16,6 +49,8 @@ class Planner:
         # Initialize Node
         rospy.init_node('Planner', anonymous=False)
         rospy.on_shutdown(self.on_shutdown)
+        self.force_coef = 0.15
+        self.torq_coef = 0.1
 
         # Initialize subscriber
         self.map_sub = rospy.Subscriber('/map', String, self.map_callback)
@@ -26,24 +61,22 @@ class Planner:
         self.cmd_pub = rospy.Publisher('/cmd_vel', geometry_msgs.msg.Twist, queue_size=1)
         self.cmd = None
         self.rate = rospy.Rate(10)  # Publisher frequency
-
-        # Hyperparams
-        self.y_dir_preference = 0.02
+        # Motion planner
+        self.motion_planner = XYPotentialPlanner()
 
 
     def map_callback(self, msg):
         self.map = json.loads(msg.data)
-
-        dist_goal_x = self.map['/goal'][0]
-        dist_goal_y = self.map['/goal'][1]
-
-        # Z-rotation
         self.cmd = geometry_msgs.msg.Twist()
 
         # XY-translation
-        self.cmd.linear.x = 0.15 ( dist_goal_x - 2 * self.dist_obstacle_x )
-        self.cmd.linear.y = 0.15 ( dist_goal_y - 2 * self.dist_obstacle_y + self.y_dir_preference )
-        self.cmd.angular.z = 0.1  * math.atan2(dist_goal_x,dist_goal_y)
+        dist_goal = np.array([[self.map['/goal'][0], self.map['/goal'][1]]])
+        xy_commands = self.motion_planner.get_commands(goals_pos=dist_goal, obstacles_pos=None)
+        self.cmd.linear.x = self.force_coef * xy_commands[0]
+        self.cmd.linear.y = self.force_coef * xy_commands[1]
+
+        # Z-rotation
+        self.cmd.angular.z = self.torq_coef * math.atan2(dist_goal[0], dist_goal[1])
 
     # sensor callback
     # if distance > threhold:
