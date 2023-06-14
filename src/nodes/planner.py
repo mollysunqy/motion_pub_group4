@@ -10,7 +10,7 @@ import json
 
 
 class XYBasePlanner:
-    def get_commands(self, goals_pos: np.ndarray = None, obstacles_pos: np.ndarray = None) -> np.ndarray:
+    def get_commands(self, goals_pos: np.ndarray, obstacles_pos: np.ndarray) -> np.ndarray:
         """
         Takes goal and obstacle positions as input and computes the velocities to apply to the robot
         :param goals_pos / obstacles_pos: ndarray of shape (n, 2) containing relative positions of goals / obstacles
@@ -21,22 +21,24 @@ class XYBasePlanner:
 
 class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
-        self.k_att = np.array([1., 1.])
-        self.k_rep = np.array([0.5, 0.5])
+        self.k_att = np.array([1., 1.])  # HARDCODED
+        self.k_rep = np.array([0.5, 0.5])  # HARDCODED
 
     def get_attraction_forces(self, att_pos_list: np.ndarray) -> np.ndarray:
-        if att_pos_list is None:
+        if len(att_pos_list) == 0:
             return np.zeros_like(self.k_att)
         else:
             assert len(att_pos_list.shape) == 2
+            assert att_pos_list.shape[1] == 2
             att_force = att_pos_list.sum(1) * self.k_att
             return att_force
 
     def get_repulsion_forces(self, rep_pos_list: np.ndarray) -> np.ndarray:
-        if rep_pos_list is None:
+        if len(rep_pos_list) == 0:
             return np.zeros_like(self.k_rep)
         else:
             assert len(rep_pos_list.shape) == 2
+            assert rep_pos_list.shape[1] == 2
             rep_force = rep_pos_list.sum(1) * self.k_rep
             return rep_force
 
@@ -52,14 +54,12 @@ class Planner:
         # Initialize Node
         rospy.init_node('Planner', anonymous=False)
         rospy.on_shutdown(self.on_shutdown)
-        self.force_coef = 0.15
-        self.torq_coef = 0.1
+        self.force_coef = 0.15  # HARDCODED
+        self.torq_coef = 0.1  # HARDCODED
 
         # Initialize subscriber
         self.map_sub = rospy.Subscriber('/map', String, self.map_callback)
         self.map = None
-        # TODO: another subscriber
-        # self.sensor_sub = rospy.Subscriber('', TYPE, self.sensor_callback)
 
         # Intialize publisher
         self.cmd_pub = rospy.Publisher('/cmd_vel', geometry_msgs.msg.Twist, queue_size=1)
@@ -69,10 +69,7 @@ class Planner:
         # Motion planner
         self.motion_planner = XYPotentialBasedPlanner()
         self.look_direction = "forward"  # "forward" or "goal"
-        self.forward_look_yComponent_threshold = 0.2
-
-        # Obstacle positions: dict of [obstacle_tag_str: obstacle_world_pos]
-        self.obstacles = {}
+        self.zRotation_angle_threshold = 0.2  # HARDCODED
 
     def map_callback(self, msg):
         self.map = json.loads(msg.data)
@@ -80,7 +77,12 @@ class Planner:
 
         # XY-translation
         dist_goal = np.array([[self.map['/goal'][0], self.map['/goal'][1]]])
-        xy_commands = self.motion_planner.get_commands(goals_pos=dist_goal, obstacles_pos=None)
+        dist_obstacles = []
+        for key in self.map.keys():
+            if 'obstacle' in key:
+                dist_obstacles.append([self.map[key][0], self.map[key][1]])
+
+        xy_commands = self.motion_planner.get_commands(goals_pos=dist_goal, obstacles_pos=np.array(dist_obstacles))
         x_command = self.force_coef * xy_commands[0]
         y_command = self.force_coef * xy_commands[1]
 
@@ -88,7 +90,7 @@ class Planner:
         if self.look_direction == "goal":
             z_command = self.torq_coef * math.atan2(dist_goal[0], dist_goal[1])
         elif self.look_direction == "forward":
-            if np.abs(math.atan2(xy_commands[0], xy_commands[1])) > 0.5:
+            if np.abs(math.atan2(xy_commands[0], xy_commands[1])) > self.zRotation_angle_threshold:
                 z_command = self.torq_coef * math.atan2(xy_commands[0], xy_commands[1])
                 x_command = 0.
                 y_command = 0.
@@ -101,13 +103,6 @@ class Planner:
         self.cmd.linear.x = x_command
         self.cmd.linear.y = y_command
         self.cmd.angular.z = z_command
-
-    def get_obstacles_rel_pos(self):
-        # TODO: query robot current position in world frame
-        current_world_pos = None
-        # TODO: compute obstacles relative positions
-        obstacles_world_pos = np.array(list(self.obstacles.values()))
-        return obstacles_world_pos - current_world_pos
 
     def spin(self):
         '''
