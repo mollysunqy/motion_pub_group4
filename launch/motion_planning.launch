@@ -1,5 +1,6 @@
 <launch>
     <arg name="twist" default="false"/>
+    <arg name="rl_policy" default="false"/>
 
     <!--Goal Broadcaster-->
     <node pkg="motion_4" type="goal_broadcaster.py"
@@ -8,11 +9,19 @@
     <!--Map Broadcaster-->
     <node pkg="motion_4" type="map_broadcaster.py" name="map_broadcaster"/>
 
-    <!--Motion Planner-->
+    <!--Planner-->
+    <node pkg="motion_4" type="planner.py"
+          name="goal_follower" ns="motion_4" />
+
+    <!--Low level Unitree controller-->
     <group if="$(arg twist)">
         <node pkg="go1-math-motion" type="twist_sub" name="node_twist_sub" output="screen"/>
-        <node pkg="motion_4" type="planner.py"
-              name="goal_follower" ns="motion_4" />
+    </group>
+
+    <!--Low level RL controller-->
+    <group if="$(arg rl_policy)">
+        <node pkg="motion_4" type="rl_policy.py"
+              name="rl_policy" ns="motion_4" />
     </group>
 
 </launch>
