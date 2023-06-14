@@ -69,6 +69,7 @@ class Planner:
         # Motion planner
         self.motion_planner = XYPotentialBasedPlanner()
         self.look_direction = "forward"  # "forward" or "goal"
+        self.forward_look_yComponent_threshold = 0.2
 
         # Obstacle positions: dict of [obstacle_tag_str: obstacle_world_pos]
         self.obstacles = {}
@@ -79,20 +80,27 @@ class Planner:
 
         # XY-translation
         dist_goal = np.array([[self.map['/goal'][0], self.map['/goal'][1]]])
-        xy_commands = self.motion_planner.get_commands(goals_pos=dist_goal, obstacles_pos=None)  # TODO: add obstacles, obstacles_pos=get_obstacles_rel_pos(self)
-        self.cmd.linear.x = self.force_coef * xy_commands[0]
-        self.cmd.linear.y = self.force_coef * xy_commands[1]
+        xy_commands = self.motion_planner.get_commands(goals_pos=dist_goal, obstacles_pos=None)
+        x_command = self.force_coef * xy_commands[0]
+        y_command = self.force_coef * xy_commands[1]
 
         # Z-rotation
         if self.look_direction == "goal":
-            self.cmd.angular.z = self.torq_coef * math.atan2(dist_goal[0], dist_goal[1])
+            z_command = self.torq_coef * math.atan2(dist_goal[0], dist_goal[1])
         elif self.look_direction == "forward":
-            if xy_commands[1] > self.:
-                pass
+            if np.abs(math.atan2(xy_commands[0], xy_commands[1])) > 0.5:
+                z_command = self.torq_coef * math.atan2(xy_commands[0], xy_commands[1])
+                x_command = 0.
+                y_command = 0.
             else:
-                self.cmd.angular.z = 0.
+                z_command = self.torq_coef * math.atan2(xy_commands[0], xy_commands[1])
         else:
             raise NotImplementedError(f"Invalid self.look_direction={self.look_direction}")
+
+        # send commands
+        self.cmd.linear.x = x_command
+        self.cmd.linear.y = y_command
+        self.cmd.angular.z = z_command
 
     def get_obstacles_rel_pos(self):
         # TODO: query robot current position in world frame
