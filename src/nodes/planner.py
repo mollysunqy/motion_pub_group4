@@ -22,8 +22,9 @@ class XYBasePlanner:
 class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
         self.k_att = np.array([1., 1.])  # HARDCODED
-        self.k_rep = np.array([2., 2.])  # HARDCODED
-        self.rep_dist_threshold = 1  # HARDCODED
+        self.k_rep = np.array([3., 3.])  # HARDCODED
+        self.object_radius = 0.40  # HARDCODED
+        self.rep_dist_threshold = 1.5  # HARDCODED
 
     def get_attraction_forces(self, att_pos_list: np.ndarray) -> np.ndarray:
         if len(att_pos_list) == 0:
@@ -40,8 +41,9 @@ class XYPotentialBasedPlanner(XYBasePlanner):
         else:
             assert len(rep_pos_list.shape) == 2
             assert rep_pos_list.shape[1] == 2
-            rep_force_mask = np.resize((np.linalg.norm(rep_pos_list, axis=1) < self.rep_dist_threshold).astype(np.float), rep_pos_list.shape)
-            rep_force = - ((1. / rep_pos_list**2.) * rep_force_mask).sum(0) * self.k_rep
+            dist_to_surface = max(np.linalg.norm(rep_pos_list, axis=1) - self.object_radius, 0.)
+            rep_force_mask = np.resize((dist_to_surface < self.rep_dist_threshold).astype(np.float), rep_pos_list.shape)
+            rep_force = - ((1. / (rep_pos_list - self.object_radius)) * rep_force_mask).sum(0) * self.k_rep
             return rep_force
 
     def compute_commands(self, goals_pos: np.ndarray, obstacles_pos: np.ndarray) -> np.ndarray:
@@ -56,7 +58,7 @@ class Planner:
         # Initialize Node
         rospy.init_node('Planner', anonymous=False)
         rospy.on_shutdown(self.on_shutdown)
-        self.force_coef = 0.3  # HARDCODED
+        self.force_coef = 0.2  # HARDCODED
         self.torq_coef = 0.5  # HARDCODED
 
         # Initialize subscriber
@@ -106,7 +108,7 @@ class Planner:
         # clipping
         x_command = min(max(x_command, -0.4), 0.4)
         y_command = min(max(y_command, -0.4), 0.4)
-        z_command = min(max(z_command, -0.5), 0.5)
+        z_command = min(max(z_command, -1.), 1.)
 
         # send commands
         self.cmd.linear.x = x_command
