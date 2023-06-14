@@ -10,7 +10,7 @@ import json
 
 
 class XYBasePlanner:
-    def get_commands(self, goals_pos: np.ndarray, obstacles_pos: np.ndarray) -> np.ndarray:
+    def compute_commands(self, goals_pos: np.ndarray, obstacles_pos: np.ndarray) -> np.ndarray:
         """
         Takes goal and obstacle positions as input and computes the velocities to apply to the robot
         :param goals_pos / obstacles_pos: ndarray of shape (n, 2) containing relative positions of goals / obstacles
@@ -22,8 +22,8 @@ class XYBasePlanner:
 class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
         self.k_att = np.array([1., 1.])  # HARDCODED
-        self.k_rep = np.array([0.5, 0.5])  # HARDCODED
-        self.rep_dist_threshold = 1.  # HARDCODED
+        self.k_rep = np.array([2., 2.])  # HARDCODED
+        self.rep_dist_threshold = 1  # HARDCODED
 
     def get_attraction_forces(self, att_pos_list: np.ndarray) -> np.ndarray:
         if len(att_pos_list) == 0:
@@ -41,7 +41,7 @@ class XYPotentialBasedPlanner(XYBasePlanner):
             assert len(rep_pos_list.shape) == 2
             assert rep_pos_list.shape[1] == 2
             rep_force_mask = np.resize((np.linalg.norm(rep_pos_list, axis=1) < self.rep_dist_threshold).astype(np.float), rep_pos_list.shape)
-            rep_force = - ((1. / rep_pos_list) * rep_force_mask).sum(0) * self.k_rep
+            rep_force = - ((1. / rep_pos_list**2.) * rep_force_mask).sum(0) * self.k_rep
             return rep_force
 
     def compute_commands(self, goals_pos: np.ndarray, obstacles_pos: np.ndarray) -> np.ndarray:
@@ -56,8 +56,8 @@ class Planner:
         # Initialize Node
         rospy.init_node('Planner', anonymous=False)
         rospy.on_shutdown(self.on_shutdown)
-        self.force_coef = 0.15  # HARDCODED
-        self.torq_coef = 0.1  # HARDCODED
+        self.force_coef = 0.3  # HARDCODED
+        self.torq_coef = 0.5  # HARDCODED
 
         # Initialize subscriber
         self.map_sub = rospy.Subscriber('/map', String, self.map_callback)
@@ -71,7 +71,7 @@ class Planner:
         # Motion planner
         self.motion_planner = XYPotentialBasedPlanner()
         self.look_direction = "forward"  # "forward" or "goal"
-        self.zRotation_angle_threshold = 0.2  # HARDCODED
+        self.zRotation_angle_threshold = 0.3  # HARDCODED
 
     def map_callback(self, msg):
         self.map = json.loads(msg.data)
@@ -84,22 +84,29 @@ class Planner:
             if 'obstacle' in key:
                 dist_obstacles.append([self.map[key][0], self.map[key][1]])
 
-        xy_commands = self.motion_planner.get_commands(goals_pos=dist_goal, obstacles_pos=np.array(dist_obstacles))
+        xy_commands = self.motion_planner.compute_commands(goals_pos=dist_goal, obstacles_pos=np.array(dist_obstacles))
         x_command = self.force_coef * xy_commands[0]
         y_command = self.force_coef * xy_commands[1]
 
         # Z-rotation
         if self.look_direction == "goal":
-            z_command = self.torq_coef * math.atan2(dist_goal[0], dist_goal[1])
+            goal_angle = math.atan2(dist_goal[0][1], dist_goal[0][0])
+            z_command = self.torq_coef * goal_angle
         elif self.look_direction == "forward":
-            if np.abs(math.atan2(xy_commands[0], xy_commands[1])) > self.zRotation_angle_threshold:
-                z_command = self.torq_coef * math.atan2(xy_commands[0], xy_commands[1])
+            commands_angle = math.atan2(xy_commands[1], xy_commands[0])
+            if np.abs(commands_angle) > self.zRotation_angle_threshold:
+                z_command = self.torq_coef * commands_angle * np.linalg.norm(np.array([x_command, y_command]))
                 x_command = 0.
                 y_command = 0.
             else:
-                z_command = self.torq_coef * math.atan2(xy_commands[0], xy_commands[1])
+                z_command = self.torq_coef * commands_angle
         else:
             raise NotImplementedError(f"Invalid self.look_direction={self.look_direction}")
+
+        # clipping
+        x_command = min(max(x_command, -0.4), 0.4)
+        y_command = min(max(y_command, -0.4), 0.4)
+        z_command = min(max(z_command, -0.5), 0.5)
 
         # send commands
         self.cmd.linear.x = x_command
