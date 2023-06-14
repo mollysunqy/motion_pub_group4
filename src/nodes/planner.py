@@ -9,7 +9,7 @@ import geometry_msgs.msg
 import json
 
 
-class BasePlanner:
+class XYBasePlanner:
     def get_commands(self, goals_pos: np.ndarray = None, obstacles_pos: np.ndarray = None) -> np.ndarray:
         """
         Takes goal and obstacle positions as input and computes the velocities to apply to the robot
@@ -19,7 +19,7 @@ class BasePlanner:
         raise NotImplementedError()
 
 
-class XYPotentialPlanner(BasePlanner):
+class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
         self.k_att = np.array([1., 1.])
         self.k_rep = np.array([0.5, 0.5])
@@ -67,7 +67,7 @@ class Planner:
         self.rate = rospy.Rate(10)  # Publisher frequency
 
         # Motion planner
-        self.motion_planner = XYPotentialPlanner()
+        self.motion_planner = XYPotentialBasedPlanner()
 
         # Obstacle positions: dict of [obstacle_tag_str: obstacle_world_pos]
         self.obstacles = {}
