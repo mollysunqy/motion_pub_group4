@@ -1,3 +1,41 @@
+# ======================= DEBUG SETTING =================================
+ROBOT = 1  # 1 is black-robot, 2 is white-robot
+MOVE_XY = False
+ROTATE_Z = False
+LOOK_FORWARD = False
+AVOID_OBSTACLES = False
+# =========================================================================
+#
+# ========================= HYPERPARAMS-ROBOT-BLACK ====================================
+if ROBOT == 1:
+    OBSTACLE_SIZE = 0.42
+    OBSTACLE_SENSING_RADIUS = 1.
+    ATTRACTION_GAINS = [1., 1.]
+    REPULSION_GAINS = [1., 1.]
+
+    XY_MOVEMENT_GAIN = 0.2
+    Z_TORQUE_GAIN = 1.5
+    Z_ANGLE_TO_GO_FORWARD = 0.5
+
+    X_CLIP = 0.4
+    Y_CLIP = 0.4
+    Z_CLIP = 1.
+
+elif ROBOT == 2:
+    OBSTACLE_SIZE = 0.42
+    OBSTACLE_SENSING_RADIUS = 1.
+    ATTRACTION_GAINS = [1., 1.]
+    REPULSION_GAINS = [1., 1.]
+
+    XY_MOVEMENT_GAIN = 0.2
+    Z_TORQUE_GAIN = 1.5
+    Z_ANGLE_TO_GO_FORWARD = 0.5
+
+    X_CLIP = 0.4
+    Y_CLIP = 0.4
+    Z_CLIP = 1.
+# =========================================================================
+
 #!/usr/bin/env python3
 # Reads the map output (see map_broadcaster.py) and publishes twist commands to reach the goal
 import math
@@ -21,10 +59,10 @@ class XYBasePlanner:
 
 class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
-        self.k_att = np.array([1., 1.])  # HARDCODED
-        self.k_rep = np.array([3., 3.])  # HARDCODED
-        self.object_radius = 0.42  # HARDCODED
-        self.rep_dist_threshold = 1.5  # HARDCODED
+        self.k_att = np.array(ATTRACTION_GAINS)
+        self.k_rep = np.array(REPULSION_GAINS)
+        self.object_radius = OBSTACLE_SIZE
+        self.rep_dist_threshold = OBSTACLE_SENSING_RADIUS
 
     def get_attraction_forces(self, att_pos_list: np.ndarray) -> np.ndarray:
         if len(att_pos_list) == 0:
@@ -58,8 +96,8 @@ class Planner:
         # Initialize Node
         rospy.init_node('Planner', anonymous=False)
         rospy.on_shutdown(self.on_shutdown)
-        self.force_coef = 0.2  # HARDCODED
-        self.torq_coef = 0.5  # HARDCODED
+        self.force_coef = XY_MOVEMENT_GAIN
+        self.torq_coef = Z_TORQUE_GAIN
 
         # Initialize subscriber
         self.map_sub = rospy.Subscriber('/map', String, self.map_callback)
@@ -73,7 +111,7 @@ class Planner:
         # Motion planner
         self.motion_planner = XYPotentialBasedPlanner()
         self.look_direction = "forward"  # "forward" or "goal"
-        self.zRotation_angle_threshold = 0.3  # HARDCODED
+        self.zRotation_angle_threshold = Z_ANGLE_TO_GO_FORWARD
 
     def map_callback(self, msg):
         self.map = json.loads(msg.data)
@@ -106,9 +144,9 @@ class Planner:
             raise NotImplementedError(f"Invalid self.look_direction={self.look_direction}")
 
         # clipping
-        x_command = min(max(x_command, -0.4), 0.4)
-        y_command = min(max(y_command, -0.4), 0.4)
-        z_command = min(max(z_command, -1.), 1.)
+        x_command = min(max(x_command, -X_CLIP), X_CLIP)
+        y_command = min(max(y_command, -Y_CLIP), Y_CLIP)
+        z_command = min(max(z_command, -Z_CLIP), Z_CLIP)
 
         # send commands
         self.cmd.linear.x = x_command
