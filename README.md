@@ -45,17 +45,19 @@ the velocities published by the planner node.
 
 Setting ```rl_policy:=1``` will launch an RL controller. Make sure to update your policy path in ```tagslam_root/src/$TEAM_NAME/nodes/rl_policy.py```.
 
+Before launching your RL policy, you should always kill the sports mode on the robot. You can do this by calling the
+̀```./kill-sport-mode.sh``` located under ```~/go1-rl/unitree-api-wrapper```.
+
 **Do not use both twist and rl_policy at the same time.**
 
 ## Workshop
-The launch file spins up 3 ROS nodes:
-- The **map_broadcaster** node. **FIX ME!**
+The launch file can spin up 4 ROS nodes:
+- The **map_broadcaster** node.
 - The **planner** node. **FIX ME!**
 - The **goal_broadcaster** node.
+- The **rl_policy** node.
 
-At first, we will aim to:
-- Finish the implementation of the **map_broadcaster** node.
-- Add basic goal reaching capabilities to the **planner** node.
+We will aim to add basic goal reaching capabilities to the **planner** node.
 
 Following the appropriate lecture, we will attempt to add obstacle avoidance capabilities to the **planner** node following a lecture on planning and motion planning.
 
@@ -63,6 +65,9 @@ All relevant source code is under ```tagslam_root/src/$TEAM_NAME/src/nodes```.
 
 
 ## map_broadcaster node
+**UPDATE: The map_boadcaster node is now complete. You are free to hack it if you want, but it should provide all
+the transforms you need to write your planner.**
+
  TagSLAM estimates and publishes all sorts of transforms to the ```tf``` topic. The **map_broadcaster** node should read relevant transforms (e.g., the goal, obstacles) and save them to a Python Dict. 
  
 The Dict is then
@@ -82,7 +87,6 @@ rostopic echo /map
 ```
 
 
-
 ## planner node
 
 This node should read the map from the ```/map``` topic, run some planning computations and publish twist commands (linear and angular velocities) to the ```/cmd_vel``` topic.
@@ -100,6 +104,24 @@ Following this, you should start using the ```map``` to move the robot the the `
 If you need to visualize your twist commmands, this command may be useful
 ```shell
 rostopic echo /cmd_vel
+```
+
+## rl_policy node
+You should update the path to your policy in ```rl_policy.py```.  If you need to run the RL policy
+in isolation, you can run the node
+```shell
+rosrun $TEAM_NAME rl_policy.py
+```
+and in another terminal, stream velocity commands, for example
+```shell
+rostopic pub /cmd_vel -r 30 geometry_msgs/Twist "linear:
+  x: 0.0
+  y: 0.0
+  z: 0.0
+angular:
+  x: 0.0
+  y: 0.0
+  z: 0.0" 
 ```
 
 ## goal_broadcaster node

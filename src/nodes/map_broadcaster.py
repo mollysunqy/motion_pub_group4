@@ -36,8 +36,7 @@ if __name__ == '__main__':
         message = dict()
 
         # Update required transforms
-        for obj in ['/rig', '/board0', '/board1', '/board2', '/board3', '/obstacle1', '/obstacle2', '/obstacle3',
-                    '/goal']:
+        for obj in ['/rig', '/board0', '/board1', '/board2', '/board3', '/obstacle1', '/obstacle2', '/obstacle3', '/goal']:
             try:
                 (trans,rot) = listener.lookupTransform('/map', obj, rospy.Time(0))
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
