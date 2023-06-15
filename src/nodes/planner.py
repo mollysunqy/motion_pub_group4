@@ -81,6 +81,8 @@ class XYPotentialBasedPlanner(XYBasePlanner):
             assert rep_pos_list.shape[1] == 2
             dist_to_surface = max(np.linalg.norm(rep_pos_list, axis=1) - self.object_radius, 0.)
             rep_force_mask = np.resize((dist_to_surface < self.rep_dist_threshold).astype(np.float), rep_pos_list.shape)
+            rospy.logerr(f"\nOBSTACLE ACTIVITY\n----------------------------")
+            rospy.logerr(f"rep_force_mask={rep_force_mask}")
             rep_force = - ((1. / (rep_pos_list - self.object_radius)) * rep_force_mask).sum(0) * self.k_rep
             return rep_force
 
@@ -110,7 +112,7 @@ class Planner:
 
         # Motion planner
         self.motion_planner = XYPotentialBasedPlanner()
-        self.look_direction = "forward"  # "forward" or "goal"
+        self.look_direction = "forward" if LOOK_FORWARD else "goal"
         self.zRotation_angle_threshold = Z_ANGLE_TO_GO_FORWARD
 
     def map_callback(self, msg):
@@ -119,39 +121,57 @@ class Planner:
 
         # XY-translation
         dist_goal = np.array([[self.map['/goal'][0], self.map['/goal'][1]]])
+        rospy.logerr(f"\nDISTANCES\n----------------------------")
+        rospy.logerr(f"dist_goal={dist_goal}")
         dist_obstacles = []
         for key in self.map.keys():
             if 'obstacle' in key:
-                dist_obstacles.append([self.map[key][0], self.map[key][1]])
+                dist_goal_i = [self.map[key][0], self.map[key][1]]
+                dist_obstacles.append(dist_goal_i)
+                rospy.logerr(f"dist_{key}={dist_goal_i}")
 
-        xy_commands = self.motion_planner.compute_commands(goals_pos=dist_goal, obstacles_pos=np.array(dist_obstacles))
+        xy_commands = self.motion_planner.compute_commands(goals_pos=dist_goal, obstacles_pos=np.array(dist_obstacles) if AVOID_OBSTACLES else [])
         x_command = self.force_coef * xy_commands[0]
         y_command = self.force_coef * xy_commands[1]
 
         # Z-rotation
+        rospy.logerr(f"\nABOUT ROTATION\n----------------------------")
         if self.look_direction == "goal":
+            rospy.logerr(f"Looking towards goal...")
             goal_angle = math.atan2(dist_goal[0][1], dist_goal[0][0])
+            rospy.logerr(f"goal_angle={goal_angle * 180. / np.pi} degrees")
             z_command = self.torq_coef * goal_angle
         elif self.look_direction == "forward":
+            rospy.logerr(f"Looking forward...")
             commands_angle = math.atan2(xy_commands[1], xy_commands[0])
+            rospy.logerr(f"commands_angle={commands_angle * 180. / np.pi} degrees")
+            z_command = self.torq_coef * commands_angle * np.linalg.norm(np.array([x_command, y_command]))
             if np.abs(commands_angle) > self.zRotation_angle_threshold:
-                z_command = self.torq_coef * commands_angle * np.linalg.norm(np.array([x_command, y_command]))
                 x_command = 0.
                 y_command = 0.
-            else:
-                z_command = self.torq_coef * commands_angle
         else:
             raise NotImplementedError(f"Invalid self.look_direction={self.look_direction}")
 
         # clipping
+        rospy.logerr(f"\nPRE_CLIP\n----------------------------")
+        rospy.logerr(f"x_command={x_command}\ny_command={y_command}\nz_command={z_command}")
         x_command = min(max(x_command, -X_CLIP), X_CLIP)
         y_command = min(max(y_command, -Y_CLIP), Y_CLIP)
         z_command = min(max(z_command, -Z_CLIP), Z_CLIP)
 
         # send commands
-        self.cmd.linear.x = x_command
-        self.cmd.linear.y = y_command
-        self.cmd.angular.z = z_command
+        rospy.logerr(f"\nFINAL\n----------------------------")
+        rospy.logerr(f"cmd.linear.x={x_command}\ncmd.linear.y={y_command}\ncmd.linear.z={z_command}")
+        if MOVE_XY:
+            self.cmd.linear.x = x_command
+            self.cmd.linear.y = y_command
+        else:
+            self.cmd.linear.x = 0.
+            self.cmd.linear.y = 0.
+        if ROTATE_Z:
+            self.cmd.angular.z = z_command
+        else:
+            self.cmd.angular.z = 0.
 
     def spin(self):
         '''
