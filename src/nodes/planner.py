@@ -1,42 +1,4 @@
 #!/usr/bin/env python3
-# ======================= DEBUG SETTING =================================
-ROBOT = 1  # 1 is black-robot, 2 is white-robot
-MOVE_XY = False
-ROTATE_Z = False
-LOOK_FORWARD = False
-AVOID_OBSTACLES = False
-# =========================================================================
-#
-# ========================= HYPERPARAMS-ROBOT-BLACK ====================================
-if ROBOT == 1:
-    OBSTACLE_SIZE = 0.42
-    OBSTACLE_SENSING_RADIUS = 1.
-    ATTRACTION_GAINS = [1., 1.]
-    REPULSION_GAINS = [1., 1.]
-
-    XY_MOVEMENT_GAIN = 0.2
-    Z_TORQUE_GAIN = 1.5
-    Z_ANGLE_TO_GO_FORWARD = 0.5
-
-    X_CLIP = 0.4
-    Y_CLIP = 0.4
-    Z_CLIP = 1.
-
-elif ROBOT == 2:
-    OBSTACLE_SIZE = 0.42
-    OBSTACLE_SENSING_RADIUS = 1.
-    ATTRACTION_GAINS = [1., 1.]
-    REPULSION_GAINS = [1., 1.]
-
-    XY_MOVEMENT_GAIN = 0.2
-    Z_TORQUE_GAIN = 1.5
-    Z_ANGLE_TO_GO_FORWARD = 0.5
-
-    X_CLIP = 0.4
-    Y_CLIP = 0.4
-    Z_CLIP = 1.
-# =========================================================================
-
 # Reads the map output (see map_broadcaster.py) and publishes twist commands to reach the goal
 import math
 
@@ -59,10 +21,10 @@ class XYBasePlanner:
 
 class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
-        self.k_att = np.array(ATTRACTION_GAINS)
-        self.k_rep = np.array(REPULSION_GAINS)
-        self.object_radius = OBSTACLE_SIZE
-        self.rep_dist_threshold = OBSTACLE_SENSING_RADIUS
+        self.k_att = np.array([1., 1.])  # HARDCODED
+        self.k_rep = np.array([0.2, 0.2])  # HARDCODED
+        self.object_radius = 0.42  # HARDCODED
+        self.rep_dist_threshold = 1.  # HARDCODED
 
     def get_attraction_forces(self, att_pos_list: np.ndarray) -> np.ndarray:
         if len(att_pos_list) == 0:
@@ -71,7 +33,7 @@ class XYPotentialBasedPlanner(XYBasePlanner):
             assert len(att_pos_list.shape) == 2
             assert att_pos_list.shape[1] == 2
             att_force = att_pos_list.sum(0) * self.k_att
-            return att_force
+            return att_force #+ np.array([0., 0.2])
 
     def get_repulsion_forces(self, rep_pos_list: np.ndarray) -> np.ndarray:
         if len(rep_pos_list) == 0:
@@ -81,13 +43,11 @@ class XYPotentialBasedPlanner(XYBasePlanner):
             assert rep_pos_list.shape[1] == 2
             dist_to_surface = max(np.linalg.norm(rep_pos_list, axis=1) - self.object_radius, 0.)
             rep_force_mask = np.resize((dist_to_surface < self.rep_dist_threshold).astype(np.float), rep_pos_list.shape)
-            rospy.logerr(f"\nOBSTACLE ACTIVITY\n----------------------------")
-            rospy.logerr(f"rep_force_mask={rep_force_mask}")
-            rep_force = - ((1. / (rep_pos_list - self.object_radius)) * rep_force_mask).sum(0) * self.k_rep
+            rep_force = ((1. / (rep_pos_list - self.object_radius)) * rep_force_mask).sum(0) * self.k_rep
             return rep_force
 
     def compute_commands(self, goals_pos: np.ndarray, obstacles_pos: np.ndarray) -> np.ndarray:
-        force = self.get_attraction_forces(goals_pos) + self.get_repulsion_forces(obstacles_pos)
+        force = self.get_attraction_forces(goals_pos) - self.get_repulsion_forces(obstacles_pos)
         return force
 
 
@@ -98,8 +58,8 @@ class Planner:
         # Initialize Node
         rospy.init_node('Planner', anonymous=False)
         rospy.on_shutdown(self.on_shutdown)
-        self.force_coef = XY_MOVEMENT_GAIN
-        self.torq_coef = Z_TORQUE_GAIN
+        self.force_coef = 0.2  # HARDCODED
+        self.torq_coef = 0.4  # HARDCODED
 
         # Initialize subscriber
         self.map_sub = rospy.Subscriber('/map', String, self.map_callback)
@@ -112,8 +72,8 @@ class Planner:
 
         # Motion planner
         self.motion_planner = XYPotentialBasedPlanner()
-        self.look_direction = "forward" if LOOK_FORWARD else "goal"
-        self.zRotation_angle_threshold = Z_ANGLE_TO_GO_FORWARD
+        self.look_direction = "goal"  # "forward" or "goal"
+        self.zRotation_angle_threshold = 0.3  # HARDCODED
 
     def map_callback(self, msg):
         self.map = json.loads(msg.data)
@@ -121,57 +81,37 @@ class Planner:
 
         # XY-translation
         dist_goal = np.array([[self.map['/goal'][0], self.map['/goal'][1]]])
-        rospy.logerr(f"\nDISTANCES\n----------------------------")
-        rospy.logerr(f"dist_goal={dist_goal}")
         dist_obstacles = []
         for key in self.map.keys():
             if 'obstacle' in key:
-                dist_goal_i = [self.map[key][0], self.map[key][1]]
-                dist_obstacles.append(dist_goal_i)
-                rospy.logerr(f"dist_{key}={dist_goal_i}")
+                dist_obstacles.append([self.map[key][0], self.map[key][1]])
 
-        xy_commands = self.motion_planner.compute_commands(goals_pos=dist_goal, obstacles_pos=np.array(dist_obstacles) if AVOID_OBSTACLES else [])
+        xy_commands = self.motion_planner.compute_commands(goals_pos=dist_goal, obstacles_pos=np.array(dist_obstacles))
         x_command = self.force_coef * xy_commands[0]
         y_command = self.force_coef * xy_commands[1]
 
         # Z-rotation
-        rospy.logerr(f"\nABOUT ROTATION\n----------------------------")
         if self.look_direction == "goal":
-            rospy.logerr(f"Looking towards goal...")
             goal_angle = math.atan2(dist_goal[0][1], dist_goal[0][0])
-            rospy.logerr(f"goal_angle={goal_angle * 180. / np.pi} degrees")
             z_command = self.torq_coef * goal_angle
         elif self.look_direction == "forward":
-            rospy.logerr(f"Looking forward...")
             commands_angle = math.atan2(xy_commands[1], xy_commands[0])
-            rospy.logerr(f"commands_angle={commands_angle * 180. / np.pi} degrees")
-            z_command = self.torq_coef * commands_angle * np.linalg.norm(np.array([x_command, y_command]))
             if np.abs(commands_angle) > self.zRotation_angle_threshold:
-                x_command = 0.
-                y_command = 0.
+                z_command = self.torq_coef * commands_angle * np.linalg.norm(np.array([x_command, y_command]))
+            else:
+                z_command = self.torq_coef * commands_angle
         else:
             raise NotImplementedError(f"Invalid self.look_direction={self.look_direction}")
 
         # clipping
-        rospy.logerr(f"\nPRE_CLIP\n----------------------------")
-        rospy.logerr(f"x_command={x_command}\ny_command={y_command}\nz_command={z_command}")
-        x_command = min(max(x_command, -X_CLIP), X_CLIP)
-        y_command = min(max(y_command, -Y_CLIP), Y_CLIP)
-        z_command = min(max(z_command, -Z_CLIP), Z_CLIP)
+        x_command = min(max(x_command, -0.4), 0.4)
+        y_command = min(max(y_command, -0.4), 0.4)
+        z_command = min(max(z_command, -1.), 1.)
 
         # send commands
-        rospy.logerr(f"\nFINAL\n----------------------------")
-        rospy.logerr(f"cmd.linear.x={x_command}\ncmd.linear.y={y_command}\ncmd.linear.z={z_command}")
-        if MOVE_XY:
-            self.cmd.linear.x = x_command
-            self.cmd.linear.y = y_command
-        else:
-            self.cmd.linear.x = 0.
-            self.cmd.linear.y = 0.
-        if ROTATE_Z:
-            self.cmd.angular.z = z_command
-        else:
-            self.cmd.angular.z = 0.
+        self.cmd.linear.x = x_command
+        self.cmd.linear.y = y_command
+        self.cmd.angular.z = z_command
 
     def spin(self):
         '''
