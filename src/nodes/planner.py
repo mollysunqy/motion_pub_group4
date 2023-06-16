@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # ======================= DEBUG SETTING =================================
 ROBOT = 1  # 1 is black-robot, 2 is white-robot
 MOVE_XY = False
@@ -36,7 +37,6 @@ elif ROBOT == 2:
     Z_CLIP = 1.
 # =========================================================================
 
-#!/usr/bin/env python3
 # Reads the map output (see map_broadcaster.py) and publishes twist commands to reach the goal
 import math
 
