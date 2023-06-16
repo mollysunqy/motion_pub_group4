@@ -23,7 +23,7 @@ class XYPotentialBasedPlanner(XYBasePlanner):
     def __init__(self):
         self.k_att = np.array([1., 1.])  # HARDCODED
         self.k_rep = np.array([0.2, 0.2])  # HARDCODED
-        self.object_radius = 0.42  # HARDCODED
+        self.object_radius = 0.2  # HARDCODED
         self.rep_dist_threshold = 1.  # HARDCODED
 
     def get_attraction_forces(self, att_pos_list: np.ndarray) -> np.ndarray:
